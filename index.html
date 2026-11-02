@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>출퇴근 기록</title>
+<meta name="theme-color" content="#3b5bfd">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap">
+<style>
+/* 레이아웃: 한 손 조작용 단일 컬럼 + 하단 탭바, 큰 원형 출퇴근 버튼 중심 */
+:root{
+  --bg:#f3f4f7;--card:#ffffff;--text:#15171c;--sub:#666d7a;--line:#e5e7ed;--muted:#eceef3;
+  --pri:#3b5bfd;--pri-soft:#e7ecff;--on-pri:#ffffff;--half:#b45309;--half-soft:#fff0d3;
+  --go1:#34d399;--go2:#059669;--stop1:#fb7185;--stop2:#e11d48;--danger:#d61f45;
+  --ov:rgba(10,12,18,.45);--toast-bg:#15171c;--toast-fg:#ffffff;
+  --shadow:0 4px 20px rgba(20,28,60,.06);
+  --font:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115;--card:#181b21;--text:#f2f3f5;--sub:#9aa1ad;--line:#272b33;--muted:#22262e;
+    --pri:#6b84ff;--pri-soft:#232b4d;--on-pri:#ffffff;--half:#fbbf24;--half-soft:#3a2f17;
+    --danger:#fb7185;--ov:rgba(0,0,0,.6);--toast-bg:#f2f3f5;--toast-fg:#15171c;--shadow:none;color-scheme:dark}
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115;--card:#181b21;--text:#f2f3f5;--sub:#9aa1ad;--line:#272b33;--muted:#22262e;
+  --pri:#6b84ff;--pri-soft:#232b4d;--on-pri:#ffffff;--half:#fbbf24;--half-soft:#3a2f17;
+  --danger:#fb7185;--ov:rgba(0,0,0,.6);--toast-bg:#f2f3f5;--toast-fg:#15171c;--shadow:none;color-scheme:dark}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);touch-action:manipulation;
+  padding-bottom:calc(84px + env(safe-area-inset-bottom,0px));letter-spacing:-.2px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.app{max-width:480px;margin:0 auto;padding-block:calc(8px + env(safe-area-inset-top,0px)) 16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.screen{display:none;animation:fade .25s ease}
+.screen.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.top{padding:14px 4px 10px}
+.top.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.eyebrow{margin:0 0 4px;font-size:13px;color:var(--sub);font-weight:600;letter-spacing:.4px}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.8px;text-wrap:balance}
+h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px}
+.card{background:var(--card);border-radius:20px;padding:18px;box-shadow:var(--shadow);margin-bottom:14px}
+.lbl{font-size:13px;font-weight:700;color:var(--sub);margin:18px 4px 8px}
+.hint{font-size:12.5px;color:var(--sub);line-height:1.55;margin:10px 4px 0}
+.empty{color:var(--sub);text-align:center;padding:18px 0;margin:0;font-size:14px}
+
+/* 홈 */
+.btnwrap{display:flex;justify-content:center;margin:22px 0 18px}
+.punch{width:216px;height:216px;max-width:100%;border-radius:50%;border:0;color:#ffffff;position:relative;
+  background:linear-gradient(150deg,var(--go1),var(--go2));
+  box-shadow:0 20px 40px -14px rgba(5,150,105,.6),inset 0 2px 0 rgba(255,255,255,.25);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .15s}
+.punch:active{transform:scale(.95)}
+.punch .pl{font-size:46px;font-weight:900;letter-spacing:-1.5px}
+.punch .ps{font-size:14px;opacity:.88;font-weight:600}
+.punch.on{background:linear-gradient(150deg,var(--stop1),var(--stop2));box-shadow:0 20px 40px -14px rgba(225,29,72,.6),inset 0 2px 0 rgba(255,255,255,.25)}
+.punch.on::before,.punch.on::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(225,29,72,.35);animation:pulse 2.2s infinite}
+.punch.on::after{animation-delay:1.1s}
+@keyframes pulse{from{transform:scale(.96);opacity:1}to{transform:scale(1.18);opacity:0}}
+.timer{text-align:center;font-size:42px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.timer.dim{color:var(--sub);font-size:34px}
+.since{text-align:center;color:var(--sub);font-size:14px;margin:4px 0 6px}
+.cancel{display:block;margin:0 auto 18px;background:none;border:0;color:var(--sub);font-size:13px;text-decoration:underline;padding:6px}
+.todayhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.todayhead span{font-size:14px;color:var(--sub);font-weight:600}
+.big{font-size:28px;font-weight:800;letter-spacing:-.8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* 배지 */
+.badge{display:inline-flex;align-items:center;font-size:12px;font-weight:800;padding:4px 9px;border-radius:999px;letter-spacing:0;white-space:nowrap}
+.badge.full{background:var(--pri);color:var(--on-pri)}
+.badge.half{background:var(--half-soft);color:var(--half)}
+.badge.none{background:var(--muted);color:var(--sub)}
+.badge.live{background:var(--muted);color:var(--danger)}
+
+/* 기록 줄 */
+.rec{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.rec:first-of-type{border-top:0}
+.rec b{font-size:16px;font-variant-numeric:tabular-nums}
+.rec small{display:block;color:var(--sub);font-size:13px;margin-top:2px}
+.acts{display:flex;gap:6px}
+.acts button{border:0;background:var(--muted);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
+.acts .del{color:var(--danger)}
+
+/* 달력 */
+.icon{width:42px;height:42px;flex:none;border-radius:14px;border:0;background:var(--card);box-shadow:var(--shadow);font-size:22px;font-weight:700;display:grid;place-items:center}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.sum div{background:var(--card);border-radius:16px;padding:12px;box-shadow:var(--shadow);min-width:0}
+.sum span{display:block;font-size:12px;color:var(--sub);font-weight:600}
+.sum b{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.wk,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wk{margin-bottom:6px}
+.wk span{text-align:center;font-size:12px;color:var(--sub);font-weight:700}
+.wk span:first-child{color:var(--danger)}.wk span:last-child{color:var(--pri)}
+.d{aspect-ratio:1/1.18;max-width:100%;border:0;background:transparent;border-radius:12px;display:flex;flex-direction:column;align-items:center;padding:7px 0 0;gap:3px;position:relative;min-width:0}
+.d b{font-size:14px;font-weight:600}
+.d small{font-size:10.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.d.sun b{color:var(--danger)}.d.sat b{color:var(--pri)}
+.d.full{background:var(--pri);color:var(--on-pri)}.d.full b{color:var(--on-pri)}
+.d.half{background:var(--half-soft);color:var(--half)}
+.d.none{background:var(--muted);color:var(--sub)}
+.d.today{box-shadow:inset 0 0 0 2px var(--text)}
+.d .dot{width:6px;height:6px;border-radius:50%;background:var(--danger);margin-top:4px;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.legend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* 시트 */
+.ov{position:fixed;inset:0;background:var(--ov);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.ov.show{opacity:1;pointer-events:auto}
+.panel{width:100%;max-width:480px;background:var(--card);border-radius:26px 26px 0 0;
+  padding-top:10px;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px));
+  padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
+  max-height:88vh;overflow:auto;transform:translateY(40px);transition:transform .25s ease}
+.ov.show .panel{transform:none}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 14px}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.x{width:36px;height:36px;flex:none;border-radius:12px;border:0;background:var(--muted);font-size:16px}
+.io{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--muted);border-radius:18px;padding:16px}
+.io div span{display:block;font-size:12px;color:var(--sub);font-weight:600}
+.io div b{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.io em{font-style:normal;font-size:11px;color:var(--sub);margin-left:3px}
+.io .arrow{color:var(--sub);font-size:18px}
+.io .badge{margin-left:auto;font-size:14px;padding:6px 12px}
+.tot{margin:10px 4px 4px;font-weight:700}
+.msg{color:var(--sub);white-space:pre-line;line-height:1.6;margin:0 0 18px}
+
+/* 입력 */
+.field{display:block;margin-bottom:12px;min-width:0}
+.field>span{display:block;font-size:13px;color:var(--sub);font-weight:600;margin-bottom:6px}
+.field input,.money{width:100%;height:50px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);padding:0 12px;font-size:16px;outline:none;min-width:0}
+.field input:focus,.money:focus-within{border-color:var(--pri)}
+.money{display:flex;align-items:center;gap:6px}
+.money i{font-style:normal;font-weight:800;color:var(--sub)}
+.money input{border:0;background:none;height:100%;padding:0;flex:1;width:100%;min-width:0;outline:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{width:100%;height:54px;border-radius:16px;border:0;font-size:16px;font-weight:700;margin-top:8px}
+.btn.pri{background:var(--pri);color:var(--on-pri)}
+.btn.red{background:var(--danger);color:#ffffff}
+.btn.ghost{background:var(--muted)}
+.btns{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;scrollbar-width:none}
+.chips button{flex:none;border:0;background:var(--muted);border-radius:999px;padding:9px 14px;font-size:13.5px;font-weight:700}
+.chips button:active{background:var(--pri-soft);color:var(--pri)}
+.bk{width:100%;height:150px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);color:var(--text);padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;resize:none;outline:none}
+
+/* 웨이지 결과 */
+.res-top span{font-size:13px;color:var(--sub);font-weight:600}
+.amount{font-size:40px;font-weight:900;letter-spacing:-1.5px;margin:4px 0 2px;color:var(--pri);word-break:break-all;font-variant-numeric:tabular-nums}
+.period{font-size:13px;color:var(--sub);margin-bottom:12px}
+.line{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line);font-size:15px}
+.line .l{display:flex;align-items:center;gap:8px;min-width:0}
+.line small{color:var(--sub);font-size:12.5px}
+.line b{font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.stats div{background:var(--muted);border-radius:14px;padding:12px;min-width:0}
+.stats span{display:block;font-size:12px;color:var(--sub);font-weight:600}
+.stats b{font-size:18px;font-weight:800}
+
+/* 설정 */
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0}
+.setrow+.setrow{border-top:1px solid var(--line)}
+.setrow b{font-size:16px}
+.setrow small{display:block;color:var(--sub);font-size:12.5px;margin-top:2px}
+.stepper{display:flex;align-items:center;gap:6px;flex:none}
+.stepper button{width:36px;height:36px;border-radius:12px;border:0;background:var(--muted);font-size:20px;font-weight:700}
+.stepper input{width:48px;height:36px;text-align:center;border:0;background:none;font-size:18px;font-weight:800}
+.stepper span{font-size:13px;color:var(--sub);margin-right:2px}
+.cur{width:64px;height:40px;text-align:center;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);font-size:16px;font-weight:700;outline:none}
+.row-btn{display:block;width:100%;text-align:left;border:0;background:none;padding:14px 0;font-size:15.5px;font-weight:600;border-top:1px solid var(--line)}
+.row-btn:first-child{border-top:0}
+.row-btn.danger{color:var(--danger)}
+
+/* 하단 탭 */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:40;background:color-mix(in srgb,var(--card) 90%,transparent);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);
+  display:flex;justify-content:center;padding-top:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.nav .in{display:grid;grid-template-columns:repeat(4,1fr);width:100%;max-width:480px}
+.nav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--sub);font-size:11.5px;font-weight:700;padding:4px 0}
+.nav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav button.on{color:var(--text)}
+
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--toast-bg);color:var(--toast-fg);
+  padding:12px 18px;border-radius:14px;font-size:14px;font-weight:600;opacity:0;transition:.25s;z-index:60;max-width:88vw;text-align:center;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 홈 -->
+  <section id="s-home" class="screen on">
+    <header class="top">
+      <p class="eyebrow" id="h-date"></p>
+      <h1 id="h-title">출근 전</h1>
+    </header>
+    <div class="btnwrap">
+      <button id="punch" class="punch"><span class="pl" id="p-label">출근</span><span class="ps" id="p-sub">근무 시작</span></button>
+    </div>
+    <div class="timer" id="timer"></div>
+    <p class="since" id="since"></p>
+    <button class="cancel" id="cancelIn" hidden>실수로 눌렀어요 · 출근 취소</button>
+    <div class="card" id="today"></div>
+  </section>
+
+  <!-- 달력 -->
+  <section id="s-cal" class="screen">
+    <header class="top row">
+      <button class="icon" id="prev" aria-label="이전 달">‹</button>
+      <h1 id="c-title"></h1>
+      <button class="icon" id="next" aria-label="다음 달">›</button>
+    </header>
+    <div class="sum" id="c-sum"></div>
+    <div class="card" id="calCard">
+      <div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--pri)"></i>풀</span>
+      <span><i style="background:var(--half-soft);box-shadow:inset 0 0 0 1px var(--half)"></i>하프</span>
+      <span><i style="background:var(--muted);box-shadow:inset 0 0 0 1px var(--line)"></i>기준 미달</span>
+    </div>
+  </section>
+
+  <!-- 웨이지 계산기 -->
+  <section id="s-wage" class="screen">
+    <header class="top"><p class="eyebrow">WAGE</p><h1>웨이지 계산기</h1></header>
+    <div class="card">
+      <div class="chips">
+        <button data-r="tw">이번 주</button><button data-r="lw">지난 주</button>
+        <button data-r="tm">이번 달</button><button data-r="lm">지난 달</button>
+      </div>
+      <div class="two">
+        <label class="field"><span>시작일</span><input type="date" id="w-from"></label>
+        <label class="field"><span>종료일</span><input type="date" id="w-to"></label>
+      </div>
+      <label class="field" style="margin-bottom:0"><span>풀타임 일당</span>
+        <div class="money"><i id="w-cur">$</i><input type="number" inputmode="decimal" id="w-amt" placeholder="예: 250"></div>
+      </label>
+    </div>
+    <div class="card" id="w-res"></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="s-set" class="screen">
+    <header class="top"><p class="eyebrow">SETTINGS</p><h1>설정</h1></header>
+    <p class="lbl">근무 인정 기준</p>
+    <div class="card">
+      <div class="setrow">
+        <div><b>하프</b><small>이 시간 이상 일하면</small></div>
+        <div class="stepper"><button data-k="half" data-d="-0.5" aria-label="하프 기준 줄이기">−</button><input id="st-half" type="number" step="0.5" inputmode="decimal"><span>시간</span><button data-k="half" data-d="0.5" aria-label="하프 기준 늘리기">+</button></div>
+      </div>
+      <div class="setrow">
+        <div><b>풀</b><small>이 시간 이상 일하면</small></div>
+        <div class="stepper"><button data-k="full" data-d="-0.5" aria-label="풀 기준 줄이기">−</button><input id="st-full" type="number" step="0.5" inputmode="decimal"><span>시간</span><button data-k="full" data-d="0.5" aria-label="풀 기준 늘리기">+</button></div>
+      </div>
+      <p class="hint" id="st-desc" style="margin:8px 0 0"></p>
+    </div>
+    <p class="lbl">표시</p>
+    <div class="card">
+      <div class="setrow"><div><b>통화 기호</b><small>웨이지 금액 앞에 표시돼요</small></div><input id="st-cur" class="cur" maxlength="3"></div>
+    </div>
+    <p class="lbl">데이터</p>
+    <div class="card" style="padding-top:4px;padding-bottom:4px">
+      <button class="row-btn" id="install" hidden>앱으로 설치하기</button>
+      <button class="row-btn" id="exp">백업 만들기</button>
+      <button class="row-btn" id="imp">백업 불러오기</button>
+      <button class="row-btn danger" id="wipe">모든 기록 삭제</button>
+    </div>
+    <p class="hint">기록은 지금 쓰는 브라우저 안에만 저장돼요. 브라우저 데이터를 지우면 기록도 사라지니 가끔 백업을 만들어 메모장 등에 붙여 두세요.</p>
+  </section>
+</div>
+
+<nav class="nav"><div class="in">
+  <button data-t="home" class="on"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>홈</button>
+  <button data-t="cal"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>달력</button>
+  <button data-t="wage"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg>웨이지</button>
+  <button data-t="set"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>설정</button>
+</div></nav>
+
+<div class="ov" id="ov"><div class="panel" id="panel"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="impf" accept=".json,.txt,application/json,text/plain" hidden>
+
+<script>
+/* ---------- 저장 ---------- */
+const KEY = 'worklog.v1';
+const DEF = { sessions: [], current: null, settings: { half: 4, full: 8, cur: '$' }, wage: { from: '', to: '', amt: '' } };
+const fresh = () => JSON.parse(JSON.stringify(DEF));
+function normalize(d) {
+  return { ...fresh(), ...d, settings: { ...DEF.settings, ...(d.settings || {}) }, wage: { ...DEF.wage, ...(d.wage || {}) } };
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d && Array.isArray(d.sessions)) return normalize(d);
+  } catch (e) {}
+  return fresh();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch (e) { toast('이 브라우저에 저장할 수 없어요. 저장공간이나 시크릿 모드를 확인하세요'); }
+}
+let db = load();
+
+/* ---------- 유틸 ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const LABEL = { full: '풀', half: '하프', none: '미달' };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const dk = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const hm = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const parseDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const dLabel = k => { const d = parseDate(k); return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`; };
+function dur(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000)), h = Math.floor(m / 60), mm = m % 60;
+  return h ? (mm ? `${h}시간 ${mm}분` : `${h}시간`) : `${mm}분`;
+}
+const hrs = ms => Math.round(ms / 360000) / 10;
+function cls(ms) {
+  if (!ms) return '';
+  const h = ms / 3600000;
+  if (h >= db.settings.full) return 'full';
+  if (h >= db.settings.half) return 'half';
+  return 'none';
+}
+const badge = c => c ? `<span class="badge ${c}">${LABEL[c]}</span>` : '';
+function byDay() {
+  const m = {};
+  db.sessions.forEach(s => { const k = dk(s.s); (m[k] = m[k] || []).push(s); });
+  Object.values(m).forEach(a => a.sort((x, y) => x.s - y.s));
+  return m;
+}
+const dayMs = arr => (arr || []).reduce((a, s) => a + (s.e - s.s), 0);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = v => esc(db.settings.cur) + (Math.round(v * 100) / 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+const vib = () => { try { navigator.vibrate && navigator.vibrate(30); } catch (e) {} };
+
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ---------- 바텀시트 ---------- */
+function openSheet(html) { $('#panel').innerHTML = '<div class="grab"></div>' + html; $('#ov').classList.add('show'); }
+function closeSheet() { $('#ov').classList.remove('show'); }
+$('#ov').addEventListener('click', e => { if (e.target.id === 'ov') closeSheet(); });
+function confirmBox(title, msg, okText, onOk, danger, onCancel) {
+  openSheet(`<h2 style="margin-bottom:10px">${title}</h2><p class="msg">${msg}</p>
+    <div class="btns"><button class="btn ghost" id="cf-no">취소</button><button class="btn ${danger ? 'red' : 'pri'}" id="cf-ok">${okText}</button></div>`);
+  $('#cf-no').onclick = () => onCancel ? onCancel() : closeSheet();
+  $('#cf-ok').onclick = () => { closeSheet(); onOk(); };
+}
+/* 시트·달력 안의 버튼은 data-act로 처리 */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const { act, k, id } = b.dataset;
+  if (act === 'close') closeSheet();
+  else if (act === 'day') openDay(k);
+  else if (act === 'edit') editRec(id || null, k);
+  else if (act === 'del') delRec(id, k);
+});
+
+/* ---------- 탭 ---------- */
+let tab = 'home';
+function go(t) {
+  tab = t;
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + t));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  render(); window.scrollTo(0, 0);
+}
+document.querySelectorAll('.nav button').forEach(b => b.onclick = () => go(b.dataset.t));
+function render() {
+  if (tab === 'home') renderHome();
+  else if (tab === 'cal') renderCal();
+  else if (tab === 'wage') renderWage();
+  else renderSet();
+}
+
+/* ---------- 홈 ---------- */
+function renderHome() {
+  const now = new Date(), on = !!db.current;
+  $('#h-date').textContent = `${now.getFullYear()}년 ${dLabel(dk(now))}`;
+  $('#h-title').textContent = on ? '근무 중' : '출근 전';
+  $('#punch').classList.toggle('on', on);
+  $('#p-label').textContent = on ? '퇴근' : '출근';
+  $('#p-sub').textContent = on ? '근무 종료' : '근무 시작';
+  $('#since').textContent = on ? `${dLabel(dk(db.current))} ${hm(db.current)} 출근` : '버튼을 눌러 출근을 기록하세요';
+  $('#cancelIn').hidden = !on;
+  tick();
+}
+function renderToday() {
+  const k = dk(Date.now()), list = byDay()[k] || [];
+  const run = db.current && dk(db.current) === k ? Date.now() - db.current : 0;
+  const total = dayMs(list) + run, c = cls(total);
+  let h = `<div class="todayhead"><span>오늘 근무</span>${run ? '<span class="badge live">근무 중</span>' : ''}</div>
+    <div class="big">${dur(total)} ${badge(c)}</div>`;
+  if (list.length) {
+    h += '<div style="margin-top:8px">' + list.map(s =>
+      `<div class="rec"><div><b>${hm(s.s)} → ${hm(s.e)}</b><small>${dur(s.e - s.s)}</small></div></div>`).join('') + '</div>';
+  } else if (!run) {
+    h += `<p class="hint" style="margin:6px 0 0">기준: 하프 ${db.settings.half}시간 · 풀 ${db.settings.full}시간 이상</p>`;
+  }
+  $('#today').innerHTML = h;
+}
+function tick() {
+  if (tab !== 'home') return;
+  const t = $('#timer');
+  if (db.current) {
+    const s = Math.floor((Date.now() - db.current) / 1000);
+    t.textContent = `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+    t.classList.remove('dim');
+  } else {
+    t.textContent = hm(Date.now()); t.classList.add('dim');
+  }
+  renderToday();
+}
+setInterval(tick, 1000);
+
+$('#punch').onclick = () => {
+  if (!db.current) {
+    db.current = Date.now(); save(); vib();
+    toast(`${hm(db.current)} 출근 기록 완료`); renderHome();
+  } else {
+    const now = Date.now();
+    confirmBox('퇴근할까요?', `${hm(db.current)} 출근 → ${hm(now)} 퇴근\n총 ${dur(now - db.current)} 근무`, '퇴근하기', () => {
+      const s = { id: uid(), s: db.current, e: Date.now() };
+      db.sessions.push(s); db.current = null; save(); vib();
+      const c = cls(dayMs(byDay()[dk(s.s)]));
+      toast(`퇴근 완료 · ${dur(s.e - s.s)}${c ? ' · ' + LABEL[c] : ''}`); renderHome();
+    });
+  }
+};
+$('#cancelIn').onclick = () => confirmBox('출근을 취소할까요?', '지금 진행 중인 출근 기록이 삭제돼요.', '출근 취소', () => {
+  db.current = null; save(); toast('출근을 취소했어요'); renderHome();
+}, true);
+
+/* ---------- 달력 ---------- */
+let cy = new Date().getFullYear(), cm = new Date().getMonth();
+function renderCal() {
+  $('#c-title').textContent = `${cy}년 ${cm + 1}월`;
+  const m = byDay(), first = new Date(cy, cm, 1).getDay(), days = new Date(cy, cm + 1, 0).getDate();
+  const todayK = dk(Date.now());
+  let full = 0, half = 0, ms = 0, h = '';
+  for (let i = 0; i < first; i++) h += '<span></span>';
+  for (let d = 1; d <= days; d++) {
+    const k = `${cy}-${pad(cm + 1)}-${pad(d)}`, t = dayMs(m[k]), c = cls(t), dow = (first + d - 1) % 7;
+    const live = db.current && dk(db.current) === k;
+    ms += t; if (c === 'full') full++; if (c === 'half') half++;
+    h += `<button class="d ${c} ${k === todayK ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-act="day" data-k="${k}">
+      <b>${d}</b>${t ? `<small>${hrs(t)}h</small>` : ''}${live ? '<i class="dot"></i>' : ''}</button>`;
+  }
+  $('#grid').innerHTML = h;
+  $('#c-sum').innerHTML = `<div><span>풀</span><b>${full}일</b></div><div><span>하프</span><b>${half}일</b></div><div><span>총 근무</span><b>${hrs(ms)}h</b></div>`;
+}
+function moveMonth(n) { cm += n; if (cm < 0) { cm = 11; cy--; } if (cm > 11) { cm = 0; cy++; } renderCal(); }
+$('#prev').onclick = () => moveMonth(-1);
+$('#next').onclick = () => moveMonth(1);
+(() => { // 좌우로 밀어서 달 이동
+  let x0 = null, y0 = null; const el = $('#calCard');
+  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) moveMonth(dx < 0 ? 1 : -1);
+    x0 = null;
+  });
+})();
+
+function openDay(k) {
+  const list = byDay()[k] || [], ms = dayMs(list), c = cls(ms);
+  let h = `<div class="sh-head"><h2>${dLabel(k)}</h2><button class="x" data-act="close" aria-label="닫기">✕</button></div>`;
+  if (list.length) {
+    const last = list[list.length - 1];
+    h += `<div class="io">
+        <div><span>출근</span><b>${hm(list[0].s)}</b></div><div class="arrow">→</div>
+        <div><span>퇴근</span><b>${hm(last.e)}${dk(last.e) !== k ? '<em>다음날</em>' : ''}</b></div>${badge(c)}
+      </div>
+      <p class="tot">총 ${dur(ms)} 근무</p>
+      <p class="lbl" style="margin-top:16px">상세 기록</p>` +
+      list.map(s => `<div class="rec"><div><b>${hm(s.s)} → ${hm(s.e)}</b><small>${dur(s.e - s.s)}</small></div>
+        <div class="acts"><button data-act="edit" data-id="${s.id}">수정</button><button class="del" data-act="del" data-id="${s.id}" data-k="${k}">삭제</button></div></div>`).join('');
+  } else {
+    h += '<p class="empty">이 날은 기록이 없어요</p>';
+  }
+  if (db.current && dk(db.current) === k) {
+    h += `<div class="rec"><div><b>${hm(db.current)} → 근무 중</b><small>${dur(Date.now() - db.current)} 경과</small></div><span class="badge live">진행 중</span></div>`;
+  }
+  h += `<button class="btn ghost" data-act="edit" data-k="${k}">+ 기록 직접 추가</button>`;
+  openSheet(h);
+}
+function editRec(id, k) {
+  const s = id ? db.sessions.find(x => x.id === id) : null;
+  if (id && !s) return closeSheet();
+  k = k || dk(s.s);
+  openSheet(`<div class="sh-head"><h2>${s ? '기록 수정' : '기록 추가'}</h2><button class="x" data-act="day" data-k="${k}" aria-label="뒤로">‹</button></div>
+    <p class="lbl" style="margin-top:0">${dLabel(k)}</p>
+    <label class="field"><span>출근 시간</span><input type="time" id="f-s" value="${s ? hm(s.s) : '07:00'}"></label>
+    <label class="field"><span>퇴근 시간</span><input type="time" id="f-e" value="${s ? hm(s.e) : '15:30'}"></label>
+    <p class="hint" style="margin:0 4px 6px">퇴근 시간이 출근보다 이르면 다음 날 퇴근으로 계산돼요</p>
+    <button class="btn pri" id="f-save">저장</button>`);
+  $('#f-save').onclick = () => {
+    const sv = $('#f-s').value, ev = $('#f-e').value;
+    if (!sv || !ev) return toast('출근과 퇴근 시간을 모두 입력하세요');
+    const st = parseDate(k), en = parseDate(k);
+    const [a, b] = sv.split(':').map(Number), [c, d] = ev.split(':').map(Number);
+    st.setHours(a, b, 0, 0); en.setHours(c, d, 0, 0);
+    if (en <= st) en.setDate(en.getDate() + 1);
+    if (s) { s.s = +st; s.e = +en; } else db.sessions.push({ id: uid(), s: +st, e: +en });
+    save(); toast('저장했어요'); render(); openDay(k);
+  };
+}
+function delRec(id, k) {
+  confirmBox('이 기록을 삭제할까요?', '삭제하면 되돌릴 수 없어요.', '삭제', () => {
+    db.sessions = db.sessions.filter(x => x.id !== id); save(); toast('삭제했어요'); render(); openDay(k);
+  }, true, () => openDay(k));
+}
+
+/* ---------- 웨이지 ---------- */
+function setRange(r) {
+  const n = new Date(); n.setHours(0, 0, 0, 0);
+  let a, b;
+  if (r === 'tw' || r === 'lw') {
+    const dow = (n.getDay() + 6) % 7; // 월요일 시작
+    a = new Date(n); a.setDate(n.getDate() - dow - (r === 'lw' ? 7 : 0));
+    b = new Date(a); b.setDate(a.getDate() + 6);
+  } else {
+    const off = r === 'lm' ? -1 : 0;
+    a = new Date(n.getFullYear(), n.getMonth() + off, 1);
+    b = new Date(n.getFullYear(), n.getMonth() + off + 1, 0);
+  }
+  $('#w-from').value = dk(a); $('#w-to').value = dk(b); calcWage();
+}
+document.querySelectorAll('.chips button').forEach(b => b.onclick = () => setRange(b.dataset.r));
+['#w-from', '#w-to', '#w-amt'].forEach(s => $(s).addEventListener('input', calcWage));
+function renderWage() {
+  $('#w-cur').textContent = db.settings.cur;
+  if (!db.wage.from || !db.wage.to) setRange('tm');
+  else { $('#w-from').value = db.wage.from; $('#w-to').value = db.wage.to; }
+  $('#w-amt').value = db.wage.amt;
+  calcWage();
+}
+function calcWage() {
+  const f = $('#w-from').value, t = $('#w-to').value, raw = $('#w-amt').value, w = parseFloat(raw) || 0;
+  db.wage = { from: f, to: t, amt: raw }; save();
+  const res = $('#w-res');
+  if (!f || !t || f > t) { res.innerHTML = '<p class="empty">시작일이 종료일보다 앞이 되도록 골라 주세요</p>'; return; }
+  const m = byDay(); let full = 0, half = 0, none = 0, ms = 0;
+  Object.keys(m).forEach(k => {
+    if (k < f || k > t) return;
+    const d = dayMs(m[k]), c = cls(d); ms += d;
+    if (c === 'full') full++; else if (c === 'half') half++; else if (c === 'none') none++;
+  });
+  const total = full * w + half * w / 2;
+  res.innerHTML = `<div class="res-top"><span>받을 금액</span></div>
+    <div class="amount">${money(total)}</div>
+    <div class="period">${dLabel(f)} ~ ${dLabel(t)}</div>
+    <div class="line"><div class="l">${badge('full')}<span>${full}일 <small>× ${money(w)}</small></span></div><b>${money(full * w)}</b></div>
+    <div class="line"><div class="l">${badge('half')}<span>${half}일 <small>× ${money(w / 2)}</small></span></div><b>${money(half * w / 2)}</b></div>
+    ${none ? `<div class="line"><div class="l">${badge('none')}<span>${none}일 <small>기준 미달</small></span></div><b>${money(0)}</b></div>` : ''}
+    <div class="stats">
+      <div><span>총 일한 날</span><b>${full + half + none}일</b></div>
+      <div><span>총 근무 시간</span><b>${dur(ms)}</b></div>
+    </div>
+    ${w ? '' : '<p class="hint" style="margin:12px 0 0">풀타임 일당을 입력하면 금액이 계산돼요 (하프 = 일당의 절반)</p>'}`;
+}
+
+/* ---------- 설정 ---------- */
+function renderSet() {
+  $('#st-half').value = db.settings.half;
+  $('#st-full').value = db.settings.full;
+  $('#st-cur').value = db.settings.cur;
+  $('#st-desc').textContent = `${db.settings.half}시간 미만은 기준 미달, ${db.settings.half}시간 이상은 하프, ${db.settings.full}시간 이상은 풀로 계산돼요.`;
+}
+function setThr(key, val) {
+  if (isNaN(val)) return renderSet();
+  val = Math.round(Math.min(24, Math.max(0.5, val)) * 2) / 2;
+  const next = { ...db.settings, [key]: val };
+  if (next.half >= next.full) { toast('하프 기준은 풀 기준보다 짧아야 해요'); return renderSet(); }
+  db.settings = next; save(); renderSet();
+}
+document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => setThr(b.dataset.k, db.settings[b.dataset.k] + parseFloat(b.dataset.d)));
+$('#st-half').addEventListener('change', e => setThr('half', parseFloat(e.target.value)));
+$('#st-full').addEventListener('change', e => setThr('full', parseFloat(e.target.value)));
+$('#st-cur').addEventListener('input', e => { db.settings.cur = e.target.value; save(); });
+
+/* 백업: 글자로 복사해 두고, 붙여넣기나 파일로 불러오기 */
+$('#exp').onclick = () => {
+  const json = JSON.stringify(db);
+  openSheet(`<div class="sh-head"><h2>백업 만들기</h2><button class="x" data-act="close" aria-label="닫기">✕</button></div>
+    <p class="msg">아래 글자 전체를 복사해서 메모장이나 카톡 '나에게 보내기'에 붙여 두세요. 나중에 '백업 불러오기'에 붙여 넣으면 기록이 돌아와요.</p>
+    <textarea class="bk" id="bk-out" readonly></textarea>
+    <button class="btn pri" id="bk-copy">전체 복사</button>
+    <button class="btn ghost" id="bk-save">백업 파일로 저장</button>`);
+  const ta = $('#bk-out'); ta.value = json;
+  $('#bk-copy').onclick = () => {
+    const fallback = () => { ta.focus(); ta.select(); toast('글자를 선택했어요. 길게 눌러 복사하세요'); };
+    try {
+      if (!navigator.clipboard) return fallback();
+      navigator.clipboard.writeText(json).then(() => toast('백업을 복사했어요'), fallback);
+    } catch (e) { fallback(); }
+  };
+  $('#bk-save').onclick = () => {
+    const d = new Date(), a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = `출퇴근기록-백업-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    toast('백업 파일을 저장했어요');
+  };
+};
+function applyImport(text) {
+  let d;
+  try { d = JSON.parse(text); if (!d || !Array.isArray(d.sessions)) throw 0; }
+  catch (e) { return toast('백업 내용이 올바르지 않아요. 복사한 글자 전체를 붙여 넣으세요'); }
+  confirmBox('백업을 불러올까요?', `기록 ${d.sessions.length}개가 들어있어요.\n지금 기록은 백업 내용으로 바뀌어요.`, '불러오기', () => {
+    db = normalize(d); save(); render(); toast('백업을 불러왔어요');
+  });
+}
+$('#imp').onclick = () => {
+  openSheet(`<div class="sh-head"><h2>백업 불러오기</h2><button class="x" data-act="close" aria-label="닫기">✕</button></div>
+    <p class="msg">복사해 둔 백업 글자를 붙여 넣으세요.</p>
+    <textarea class="bk" id="bk-in" placeholder="여기에 붙여넣기"></textarea>
+    <button class="btn pri" id="bk-go">불러오기</button>
+    <button class="btn ghost" id="bk-file">백업 파일에서 불러오기</button>`);
+  $('#bk-go').onclick = () => applyImport($('#bk-in').value.trim());
+  $('#bk-file').onclick = () => $('#impf').click();
+};
+$('#impf').onchange = e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => { applyImport(String(r.result)); e.target.value = ''; };
+  r.readAsText(file);
+};
+$('#wipe').onclick = () => confirmBox('모든 기록을 삭제할까요?', '출퇴근 기록이 전부 사라지고 되돌릴 수 없어요.\n(설정은 그대로예요)', '전부 삭제', () => {
+  db.sessions = []; db.current = null; save(); render(); toast('모든 기록을 삭제했어요');
+}, true);
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { db = load(); render(); } });
+/* 앱 설치 + 오프라인 */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#install').hidden = false; });
+$('#install').onclick = async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice;
+  installEvt = null; $('#install').hidden = true;
+};
+window.addEventListener('appinstalled', () => toast('앱을 설치했어요'));
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+render();
+</script>
+</body>
+</html>
