@@ -193,6 +193,31 @@ h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px}
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--toast-bg);color:var(--toast-fg);
   padding:12px 18px;border-radius:14px;font-size:14px;font-weight:600;opacity:0;transition:.25s;z-index:60;max-width:88vw;text-align:center;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+/* 쉼 · 요약 */
+.badge.rest{background:transparent;color:var(--sub);box-shadow:inset 0 0 0 1.5px var(--line)}
+.d.rest{box-shadow:inset 0 0 0 1px var(--line)}
+.d.rest small{color:var(--sub)}
+.sum.four{grid-template-columns:repeat(4,1fr)}
+.sum.four b{font-size:17px}
+button.line{width:100%;background:none;border:0;border-top:1px solid var(--line);text-align:left;border-radius:0}
+button.line:active{background:var(--muted)}
+.line .r{display:flex;align-items:center;gap:6px;flex:none}
+.chev{color:var(--sub);font-size:20px;line-height:1}
+.gh{display:flex;align-items:center;gap:8px}
+.gh .badge{font-size:14px;padding:5px 11px}
+.sumlist{display:flex;flex-direction:column}
+.sumrow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;width:100%;background:none;border:0;border-top:1px solid var(--line);padding:11px 2px;text-align:left;font-size:14px}
+.sumrow:first-child{border-top:0}
+.sumrow .st{color:var(--sub);font-size:13px;font-variant-numeric:tabular-nums}
+.sumrow b{min-width:74px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.sumtot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:14px 16px;background:var(--muted);border-radius:14px}
+.sumtot span{color:var(--sub);font-weight:600}
+.sumtot b{font-size:18px;font-weight:800}
+.sumtot small{font-size:13px;color:var(--sub);font-weight:600}
+.sw{width:50px;height:30px;flex:none;border-radius:999px;border:0;background:var(--line);position:relative;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.sw[aria-checked="true"]{background:var(--pri)}
+.sw[aria-checked="true"]::after{transform:translateX(20px)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 [hidden]{display:none!important}
 </style>
@@ -231,6 +256,7 @@ h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px}
       <span><i style="background:var(--pri)"></i>풀</span>
       <span><i style="background:var(--half-soft);box-shadow:inset 0 0 0 1px var(--half)"></i>하프</span>
       <span><i style="background:var(--muted);box-shadow:inset 0 0 0 1px var(--line)"></i>기준 미달</span>
+      <span id="lg-rest" hidden><i style="box-shadow:inset 0 0 0 1px var(--sub)"></i>쉼</span>
     </div>
   </section>
 
@@ -268,6 +294,12 @@ h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px}
       </div>
       <p class="hint" id="st-desc" style="margin:8px 0 0"></p>
     </div>
+    <p class="lbl">쉬는 날</p>
+    <div class="card">
+      <div class="setrow"><div><b>쉼 표시</b><small>일 안 한 날을 달력에 '쉼'으로 표시해요</small></div><button class="sw" id="st-rest" role="switch" aria-checked="false" aria-label="쉼 표시"></button></div>
+      <div class="setrow" id="row-restwage" hidden><div><b>웨이지에 쉼 일수 표시</b><small>계산 결과에 쉰 날 수도 보여줘요</small></div><button class="sw" id="st-restwage" role="switch" aria-checked="false" aria-label="웨이지에 쉼 일수 표시"></button></div>
+      <p class="hint" style="margin:8px 0 0">첫 기록 날부터 어제까지 기록이 없는 날이 쉼으로 잡혀요.</p>
+    </div>
     <p class="lbl">표시</p>
     <div class="card">
       <div class="setrow"><div><b>통화 기호</b><small>웨이지 금액 앞에 표시돼요</small></div><input id="st-cur" class="cur" maxlength="3"></div>
@@ -297,7 +329,7 @@ h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.5px}
 <script>
 /* ---------- 저장 ---------- */
 const KEY = 'worklog.v1';
-const DEF = { sessions: [], current: null, settings: { half: 4, full: 8, cur: '$' }, wage: { from: '', to: '', amt: '' } };
+const DEF = { sessions: [], current: null, settings: { half: 4, full: 8, cur: '$', rest: false, restWage: false }, wage: { from: '', to: '', amt: '' } };
 const fresh = () => JSON.parse(JSON.stringify(DEF));
 function normalize(d) {
   return { ...fresh(), ...d, settings: { ...DEF.settings, ...(d.settings || {}) }, wage: { ...DEF.wage, ...(d.wage || {}) } };
@@ -319,7 +351,7 @@ let db = load();
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
-const LABEL = { full: '풀', half: '하프', none: '미달' };
+const LABEL = { full: '풀', half: '하프', none: '미달', rest: '쉼' };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const dk = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const hm = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -345,6 +377,16 @@ function byDay() {
   return m;
 }
 const dayMs = arr => (arr || []).reduce((a, s) => a + (s.e - s.s), 0);
+/* 쉼: 첫 기록 날부터 어제까지 기록이 없는 날 */
+function firstDay() {
+  let min = null;
+  db.sessions.forEach(s => { const k = dk(s.s); if (!min || k < min) min = k; });
+  if (db.current) { const k = dk(db.current); if (!min || k < min) min = k; }
+  return min;
+}
+function isRest(k, m, f0, todayK) {
+  return !!(db.settings.rest && f0 && k >= f0 && k < todayK && !(m[k] && m[k].length) && !(db.current && dk(db.current) === k));
+}
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = v => esc(db.settings.cur) + (Math.round(v * 100) / 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
 const vib = () => { try { navigator.vibrate && navigator.vibrate(30); } catch (e) {} };
@@ -373,6 +415,7 @@ document.addEventListener('click', e => {
   else if (act === 'day') openDay(k);
   else if (act === 'edit') editRec(id || null, k);
   else if (act === 'del') delRec(id, k);
+  else if (act === 'grp') openGroup(b.dataset.g);
 });
 
 /* ---------- 탭 ---------- */
@@ -454,18 +497,24 @@ let cy = new Date().getFullYear(), cm = new Date().getMonth();
 function renderCal() {
   $('#c-title').textContent = `${cy}년 ${cm + 1}월`;
   const m = byDay(), first = new Date(cy, cm, 1).getDay(), days = new Date(cy, cm + 1, 0).getDate();
-  const todayK = dk(Date.now());
-  let full = 0, half = 0, ms = 0, h = '';
+  const todayK = dk(Date.now()), f0 = firstDay();
+  let full = 0, half = 0, rest = 0, ms = 0, h = '';
   for (let i = 0; i < first; i++) h += '<span></span>';
   for (let d = 1; d <= days; d++) {
-    const k = `${cy}-${pad(cm + 1)}-${pad(d)}`, t = dayMs(m[k]), c = cls(t), dow = (first + d - 1) % 7;
+    const k = `${cy}-${pad(cm + 1)}-${pad(d)}`, t = dayMs(m[k]), r = isRest(k, m, f0, todayK);
+    const c = r ? 'rest' : cls(t), dow = (first + d - 1) % 7;
     const live = db.current && dk(db.current) === k;
-    ms += t; if (c === 'full') full++; if (c === 'half') half++;
+    ms += t; if (c === 'full') full++; if (c === 'half') half++; if (r) rest++;
     h += `<button class="d ${c} ${k === todayK ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-act="day" data-k="${k}">
-      <b>${d}</b>${t ? `<small>${hrs(t)}h</small>` : ''}${live ? '<i class="dot"></i>' : ''}</button>`;
+      <b>${d}</b>${t ? `<small>${hrs(t)}h</small>` : r ? '<small>쉼</small>' : ''}${live ? '<i class="dot"></i>' : ''}</button>`;
   }
   $('#grid').innerHTML = h;
-  $('#c-sum').innerHTML = `<div><span>풀</span><b>${full}일</b></div><div><span>하프</span><b>${half}일</b></div><div><span>총 근무</span><b>${hrs(ms)}h</b></div>`;
+  const sum = $('#c-sum');
+  sum.classList.toggle('four', !!db.settings.rest);
+  sum.innerHTML = `<div><span>풀</span><b>${full}일</b></div><div><span>하프</span><b>${half}일</b></div>` +
+    (db.settings.rest ? `<div><span>쉼</span><b>${rest}일</b></div>` : '') +
+    `<div><span>총 근무</span><b>${hrs(ms)}h</b></div>`;
+  $('#lg-rest').hidden = !db.settings.rest;
 }
 function moveMonth(n) { cm += n; if (cm < 0) { cm = 11; cy--; } if (cm > 11) { cm = 0; cy++; } renderCal(); }
 $('#prev').onclick = () => moveMonth(-1);
@@ -495,7 +544,7 @@ function openDay(k) {
       list.map(s => `<div class="rec"><div><b>${hm(s.s)} → ${hm(s.e)}</b><small>${dur(s.e - s.s)}</small></div>
         <div class="acts"><button data-act="edit" data-id="${s.id}">수정</button><button class="del" data-act="del" data-id="${s.id}" data-k="${k}">삭제</button></div></div>`).join('');
   } else {
-    h += '<p class="empty">이 날은 기록이 없어요</p>';
+    h += `<p class="empty">${isRest(k, byDay(), firstDay(), dk(Date.now())) ? '쉬는 날이에요' : '이 날은 기록이 없어요'}</p>`;
   }
   if (db.current && dk(db.current) === k) {
     h += `<div class="rec"><div><b>${hm(db.current)} → 근무 중</b><small>${dur(Date.now() - db.current)} 경과</small></div><span class="badge live">진행 중</span></div>`;
@@ -554,29 +603,58 @@ function renderWage() {
   $('#w-amt').value = db.wage.amt;
   calcWage();
 }
+let wageGroups = { full: [], half: [], none: [], rest: [] }, wageRange = ['', ''];
 function calcWage() {
   const f = $('#w-from').value, t = $('#w-to').value, raw = $('#w-amt').value, w = parseFloat(raw) || 0;
   db.wage = { from: f, to: t, amt: raw }; save();
   const res = $('#w-res');
   if (!f || !t || f > t) { res.innerHTML = '<p class="empty">시작일이 종료일보다 앞이 되도록 골라 주세요</p>'; return; }
-  const m = byDay(); let full = 0, half = 0, none = 0, ms = 0;
+  const m = byDay(), g = { full: [], half: [], none: [], rest: [] }; let ms = 0;
   Object.keys(m).forEach(k => {
     if (k < f || k > t) return;
     const d = dayMs(m[k]), c = cls(d); ms += d;
-    if (c === 'full') full++; else if (c === 'half') half++; else if (c === 'none') none++;
+    if (c) g[c].push(k);
   });
+  const showRest = db.settings.rest && db.settings.restWage;
+  if (showRest) {
+    const f0 = firstDay(), todayK = dk(Date.now());
+    for (let d = parseDate(f); dk(d) <= t; d.setDate(d.getDate() + 1)) { const k = dk(d); if (isRest(k, m, f0, todayK)) g.rest.push(k); }
+  }
+  Object.values(g).forEach(a => a.sort());
+  wageGroups = g; wageRange = [f, t];
+  const full = g.full.length, half = g.half.length, none = g.none.length;
   const total = full * w + half * w / 2;
+  const line = (key, extra, amt) => `<button class="line" data-act="grp" data-g="${key}">
+      <div class="l">${badge(key)}<span>${g[key].length}일 ${extra}</span></div>
+      <div class="r"><b>${money(amt)}</b><span class="chev">›</span></div></button>`;
   res.innerHTML = `<div class="res-top"><span>받을 금액</span></div>
     <div class="amount">${money(total)}</div>
     <div class="period">${dLabel(f)} ~ ${dLabel(t)}</div>
-    <div class="line"><div class="l">${badge('full')}<span>${full}일 <small>× ${money(w)}</small></span></div><b>${money(full * w)}</b></div>
-    <div class="line"><div class="l">${badge('half')}<span>${half}일 <small>× ${money(w / 2)}</small></span></div><b>${money(half * w / 2)}</b></div>
-    ${none ? `<div class="line"><div class="l">${badge('none')}<span>${none}일 <small>기준 미달</small></span></div><b>${money(0)}</b></div>` : ''}
+    ${line('full', `<small>× ${money(w)}</small>`, full * w)}
+    ${line('half', `<small>× ${money(w / 2)}</small>`, half * w / 2)}
+    ${none ? line('none', '<small>기준 미달</small>', 0) : ''}
+    ${showRest ? line('rest', '<small>쉬는 날</small>', 0) : ''}
+    <p class="hint" style="margin:2px 0 0">항목을 누르면 날짜별 근무 시간을 볼 수 있어요</p>
     <div class="stats">
       <div><span>총 일한 날</span><b>${full + half + none}일</b></div>
       <div><span>총 근무 시간</span><b>${dur(ms)}</b></div>
     </div>
     ${w ? '' : '<p class="hint" style="margin:12px 0 0">풀타임 일당을 입력하면 금액이 계산돼요 (하프 = 일당의 절반)</p>'}`;
+}
+function openGroup(key) {
+  const ks = wageGroups[key] || [];
+  if (!ks.length) return toast(`${LABEL[key]}에 해당하는 날이 없어요`);
+  const m = byDay(); let total = 0;
+  const rows = ks.map(k => {
+    const l = m[k] || [], t = dayMs(l); total += t;
+    return `<button class="sumrow" data-act="day" data-k="${k}"><span>${dLabel(k)}</span>` +
+      (l.length ? `<span class="st">${hm(l[0].s)}–${hm(l[l.length - 1].e)}</span><b>${dur(t)}</b>` : '<span class="st">기록 없음</span><b></b>') +
+      '</button>';
+  }).join('');
+  openSheet(`<div class="sh-head"><h2 class="gh">${badge(key)}<span>${ks.length}일</span></h2><button class="x" data-act="close" aria-label="닫기">✕</button></div>
+    <p class="period" style="margin:-6px 0 6px">${dLabel(wageRange[0])} ~ ${dLabel(wageRange[1])}</p>
+    <div class="sumlist">${rows}</div>
+    ${key !== 'rest' ? `<div class="sumtot"><span>합계</span><b>${dur(total)} <small>(${hrs(total)}h)</small></b></div>` : ''}`);
 }
 
 /* ---------- 설정 ---------- */
@@ -584,6 +662,9 @@ function renderSet() {
   $('#st-half').value = db.settings.half;
   $('#st-full').value = db.settings.full;
   $('#st-cur').value = db.settings.cur;
+  $('#st-rest').setAttribute('aria-checked', db.settings.rest ? 'true' : 'false');
+  $('#st-restwage').setAttribute('aria-checked', db.settings.restWage ? 'true' : 'false');
+  $('#row-restwage').hidden = !db.settings.rest;
   $('#st-desc').textContent = `${db.settings.half}시간 미만은 기준 미달, ${db.settings.half}시간 이상은 하프, ${db.settings.full}시간 이상은 풀로 계산돼요.`;
 }
 function setThr(key, val) {
@@ -597,6 +678,8 @@ document.querySelectorAll('.stepper button').forEach(b => b.onclick = () => setT
 $('#st-half').addEventListener('change', e => setThr('half', parseFloat(e.target.value)));
 $('#st-full').addEventListener('change', e => setThr('full', parseFloat(e.target.value)));
 $('#st-cur').addEventListener('input', e => { db.settings.cur = e.target.value; save(); });
+$('#st-rest').onclick = () => { db.settings.rest = !db.settings.rest; save(); renderSet(); toast(db.settings.rest ? '쉬는 날을 달력에 표시해요' : '쉼 표시를 껐어요'); };
+$('#st-restwage').onclick = () => { db.settings.restWage = !db.settings.restWage; save(); renderSet(); };
 
 /* 백업: 글자로 복사해 두고, 붙여넣기나 파일로 불러오기 */
 $('#exp').onclick = () => {
